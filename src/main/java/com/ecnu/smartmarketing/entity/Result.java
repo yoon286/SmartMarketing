@@ -1,7 +1,7 @@
 package com.ecnu.smartmarketing.entity;
 
 /**
- * @author BWZW_171475
+ * @author yoon
  * @description: TODO
  * @date 2022/6/1422:25
  */
