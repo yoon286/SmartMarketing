@@ -1,0 +1,20 @@
+spring:
+  #redisson配置,默认连接库0,无密码只配置连接地址即可
+  redis:
+    host: 106.15.126.24
+    database: 0
+    password: 123456
+
+  # 配置 MySQL
+  datasource:
+    url: jdbc:mysql://localhost:3306/marketing?serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+# 配置 MyBatis
+mybatis:
+  mapper-locations: classpath:mapper/*
+  type-aliases-package: com.ecnu.smartmarketing.entity
+  configuration:
+    map-underscore-to-camel-case: true
