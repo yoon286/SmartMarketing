@@ -28,15 +28,15 @@ object MarketingApp {
       AdsLog(arr(0).toLong, arr(1), arr(2), arr(3), arr(4))
     })
 
-    //5.需求一：根据 MySQL 中的黑名单过滤当前数据集
+    //5.根据 MySQL 中的黑名单过滤当前数据集
     val filterAdsLogDStream: DStream[AdsLog] =
       BlackListHandler.filterByBlackList(adsLogDStream)
 
-    //6.需求一：将满足要求的用户写入黑名单
-    //BlackListHandler.addBlackList(filterAdsLogDStream)
+    //6.将满足要求的用户写入黑名单
+    BlackListHandler.addBlackList(filterAdsLogDStream)
 
     //7.统计每天各大区各个城市广告点击总数并保存至 MySQL 中
-    //DateAreaCityAdCountHandler.saveDateAreaCityAdCountToMysql(filterAdsLogDStream)
+    DateAreaCityAdCountHandler.saveDateAreaCityAdCountToMysql(filterAdsLogDStream)
 
     //8.统计最近一小时(2 分钟)广告分时点击总数
     val adToHmCountListDStream: DStream[(String, List[(String, Long)])] =
