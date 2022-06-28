@@ -1,0 +1,4 @@
+www.baidu.com,baidu,百度,度娘,百,BAT,百度系
+www.google.com,guge,谷歌,google,浏览器
+www.tencent.com,视频,浏览器,腾讯,马化腾
+www.taobao.com,购物,618,马云,淘宝,支付宝,衣服

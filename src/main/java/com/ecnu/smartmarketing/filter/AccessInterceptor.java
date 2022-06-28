@@ -37,7 +37,7 @@ public class AccessInterceptor{
     /**
      * 定义拦截器规则
      */
-    @Pointcut("execution(* com.ecnu.smartmarketing.controller.AdController.*(..))")
+    @Pointcut("execution(* com.ecnu.smartmarketing.controller.AdController.getAd(..))")
     public void pointCut() {
     }
 

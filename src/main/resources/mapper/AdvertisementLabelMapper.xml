@@ -7,13 +7,15 @@
 
     <select id="selectByLabel" resultType="com.ecnu.smartmarketing.entity.Advertisement">
         select t1.* from advertisement t1
-        left join  advertisement_label t2 on t1.id=t2.advertisementId
+        left join advertisement_label t2 on t1.id=t2.advertisementId
         left join label t3 on t3.id=t2.labelId
-        <where>
-            t3.name IN
-            <foreach collection="labelList" item="label" index="index" open="(" separator="," close=")">
-                #{label}
-            </foreach>
-        </where>
+        <if test="labelList!=null and labelList.size()>0">
+            <where>
+                t3.name IN
+                <foreach collection="labelList" item="label" index="index" open="(" separator="," close=")">
+                    #{label}
+                </foreach>
+            </where>
+        </if>
     </select>
 </mapper>

@@ -4,11 +4,23 @@
 
 广告系统中必不可少的部分是一个实时响应广告请求，并决策广告的投放引擎。一般来说，广告系统的投放引擎采用类搜索的架构，即检索加排序的两阶段决策过程。
 
-在本项目中，我们主要实现了处理广告请求+广告排序+实时广告监测功能，主要流程包括：
+在本项目中，我们主要实现了处理
+
+###### 广告请求
+
+主要流程包括：
 
 > 接受广告前端 Web 服务器发来的请求 —> 解析请求 —> 搜索前预处理 —> 判断有效广告位 —> 记录请求 —> 是否进入搜索 —> 查询用户属性 —> 交易类型判断 —> lucene搜索 —> 构造回调基本信息 —> 封装响应 —> 返回
 
-广告投放机的主要任务是与其他各个功能模块打交道，并将它们串联起来完成在线广告投放决策。同时，我们实现了广告监测功能：
+###### 广告检索
+
+使用Lucene进行索引倒排，根据搜索关键词，获取排名前10的关键结果，从广告索引（ad index）中查找符合条件的广告候选。
+
+
+
+广告投放机的主要任务是与其他各个功能模块打交道，并将它们串联起来完成在线广告投放决策。同时，我们实现了:
+
+###### 广告监测功能
 
 （1）在线反作弊（anti-spam）。实时判断流量来源中是否有作弊流量，并且将这部分流量从后续的计价和统计中去除掉。
 
@@ -30,9 +42,55 @@
 
 
 
+## 主要技术栈：
+
+##### Spring Boot + Redis + Kafka + Lucene + Spark Streaming + Zookeeper 
+
+
+
+## 小组分工：
+
+尹丹：广告检索 + 广告黑名单 + 点击量实时统计 + 流程设计 + 文档撰写
+
+黄伟勋：广告请求 + 最近一小时广告点击量 + 框架设计
+
+
+
 ---
 
 #### 2. 实现思路
+
+###### 处理广告请求：
+
+1）使用切面限制用户分钟级访问次数，若当前用户已在黑名单中，请求结束。
+
+2）若不在黑名单中，统计用户访问次数，限制一分钟之内只能访问10次
+
+3）从redis中获取userId标签
+
+4）从redis中获取url标签
+
+5）取两个集合并集作为广告搜索的条件
+
+7）广告排序-点击率和出价的乘积对广告排序
+
+8）返回广告
+
+
+
+###### 广告检索：
+
+1）构建分词器 / 构建文档写入器 / 读取所有文件构建文档
+
+2）构建索引读取器
+
+3）构建索引查询器
+
+4）执行查询，获取URL，标签等
+
+5）返回检索结果
+
+
 
 ###### 广告黑名单：
 
@@ -62,9 +120,37 @@
 
 #### 3. 测试用例及结果截图
 
+##### a.广告请求
+
+![image-20220627213108726](src/main/resources/img/image-20220627213108726.png)
+
+![image-20220627213126418](src/main/resources/img/image-20220627213126418.png)
+
+
+
+![image-20220627213151646](src/main/resources/img/image-20220627213151646.png)
+
+![image-20220627213204634](src/main/resources/img/image-20220627213204634.png)
+
+![image-20220627213215269](src/main/resources/img/image-20220627213215269.png)
+
+![image-20220627213223641](src/main/resources/img/image-20220627213223641.png)
+
+![image-20220627213237426](src/main/resources/img/image-20220627213237426.png)
+
+##### b.广告检索
+
+- 建立倒排索引
+
+![image-20220627225421572](src/main/resources/img/image-20220627225421572.png)
+
+![image-20220627230251281](src/main/resources/img/image-20220627230251281.png)
+
+
+
 ![image-20220626170305804](src/main/resources/img/image-20220626170305804.png)
 
-##### a. 模拟数据生成
+##### c. 模拟数据生成
 
 ```java
 /**
@@ -81,21 +167,21 @@
 
 ![img.png](src/main/resources/img/img0.png)
 
-##### b.广告黑名单
+##### d.广告黑名单
 
 ![image-20220626165355401](src/main/resources/img/image-20220626165355401.png)
 
-##### c.最近一小时广告点击量
+##### e.最近一小时广告点击量
 
 ![image-20220626165847253](src/main/resources/img/image-20220626165847253.png)
 
-##### d.广告点击量实时统计
+##### f.广告点击量实时统计
 
 ![img.png](src/main/resources/img/img2.png)
 
 
 
-##### e.控制台日志归类
+##### g.控制台日志归类
 
 ![image-20220626163451256](src\main\resources\img\image-20220626163451256.png)
 
@@ -103,7 +189,80 @@
 
 #### 4. 程序的主要代码片段
 
-##### a. MarketingApp 主程序
+##### a. 广告请求
+
+```java
+public String getAd(String userId,String page){
+
+    //1.从redis中获取userId标签
+    RList<String> userLabelRList = redissonClient.getList("label:userId:"+userId,new StringCodec());
+    List<String> userLabelList = userLabelRList.range(0,-1);
+    //2.从redis中获取url标签
+    RList<String> pageLabelRList = redissonClient.getList("label:page:"+page,new StringCodec());
+    List<String> pageLabelList = pageLabelRList.range(0,-1);
+    //3.取两个集合并集作为广告搜索的条件
+    userLabelList.addAll(pageLabelList);
+    Set<String> labelList=new HashSet<>(userLabelList);
+    //4.根据标签进行广告检索
+    List<Advertisement> advertisementList=advertisementLabelMapper.selectByLabel(labelList);
+    System.out.println(advertisementList);
+    //5.广告排序-点击率和出价的乘积对广告排序
+    HashMap<Advertisement,Double> map=new HashMap<>();
+    for (Advertisement ad : advertisementList) {
+        Double rtc= (Double) redissonClient.getBucket("ctr:"+ad.getId(),new DoubleCodec()).get();
+        map.put(ad,rtc*ad.getPrice());
+    }
+    List<Map.Entry<Advertisement, Double>> list = new ArrayList<>(map.entrySet());
+    list.sort(Map.Entry.comparingByValue());
+    list.forEach(System.out::println);
+    //6.返回广告
+    return list.get(list.size()-1).getKey().getUrl();
+}
+```
+
+##### b.广告检索
+
+```java
+// 1. 构建分词器（IKAnalyzer）
+IKAnalyzer ikAnalyzer = new IKAnalyzer();
+
+// 2. 构建文档写入器配置（IndexWriterConfig）
+IndexWriterConfig indexWriterConfig = new IndexWriterConfig(ikAnalyzer);
+
+// 3. 构建文档写入器（IndexWriter）
+IndexWriter indexWriter = new IndexWriter(
+        FSDirectory.open(Paths.get("D:\\Learning\\MasterCourses\\SmartMarketing\\index")), indexWriterConfig);
+
+// 4. 读取所有文件构建文档
+File articleDir = new File("D:\\Learning\\MasterCourses\\SmartMarketing\\data");
+File[] fileList = articleDir.listFiles();
+
+
+for (File file : Objects.requireNonNull(fileList)) {
+
+    // 5. 文档中添加字段
+    CsvReader reader = CsvUtil.getReader();
+    //从文件中读取CSV数据
+    CsvData data = reader.read(file);
+    List<CsvRow> rows = data.getRows();
+    //遍历行
+    for (CsvRow csvRow : rows) {
+        //getRawList返回一个List列表，列表的每一项为CSV中的一个单元格（既逗号分隔部分）
+        Console.log(csvRow.getRawList());
+
+        // 6. 写入文档
+        Document document = new Document();
+        document.add(new TextField("url", csvRow.get(0), Field.Store.YES));
+        document.add(new TextField("keyWord", csvRow.toString(), Field.Store.NO));
+        document.add(new StoredField("path", file.getAbsolutePath() + "/" + file.getName()));
+        indexWriter.addDocument(document);
+    }
+}
+// 7. 关闭写入器
+indexWriter.close();
+```
+
+##### c. MarketingApp 主程序
 
 ```java
 object MarketingApp {
@@ -151,7 +310,7 @@ object MarketingApp {
 }
 ```
 
-##### b. BlackListHandler
+##### d. BlackListHandler
 
 ```java
 package com.ecnu.smartmarketing.spark.handler
@@ -249,7 +408,7 @@ object BlackListHandler {
 }
 ```
 
-##### c. DateAreaCityAdCountHandler
+##### e. DateAreaCityAdCountHandler
 
 ```java
 package com.ecnu.smartmarketing.spark.handler
@@ -308,7 +467,7 @@ object DateAreaCityAdCountHandler {
 }
 ```
 
-##### d. LastHourAdCountHandler
+##### f. LastHourAdCountHandler
 
 ```java
 package com.ecnu.smartmarketing.spark.handler
@@ -368,9 +527,102 @@ object LastHourAdCountHandler {
 }
 ```
 
-##### e.建表语句
+##### g. 建表语句
 
 ```sql
+/*
+ Navicat Premium Data Transfer
+
+ Source Server         : smartMarketing
+ Source Server Type    : MySQL
+ Source Server Version : 80029
+ Source Host           : 106.15.126.24:3306
+ Source Schema         : marketing
+
+ Target Server Type    : MySQL
+ Target Server Version : 80029
+ File Encoding         : 65001
+
+ Date: 23/06/2022 03:22:12
+*/
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ----------------------------
+-- Table structure for advertisement
+-- ----------------------------
+DROP TABLE IF EXISTS `advertisement`;
+CREATE TABLE `advertisement`
+(
+    `id`    int                                                    NOT NULL AUTO_INCREMENT,
+    `name`  varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '广告名称',
+    `url`   varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '广告url',
+    `price` double(10, 2)                                          NULL DEFAULT NULL COMMENT '广告报价',
+    PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 3
+  CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_bin
+  ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of advertisement
+-- ----------------------------
+INSERT INTO `advertisement`
+VALUES (1, '汽车广告1', 'www.car1.com', 11.00);
+INSERT INTO `advertisement`
+VALUES (2, '汽车广告2', 'www.car2.com', 44.00);
+
+-- ----------------------------
+-- Table structure for advertisement_label
+-- ----------------------------
+DROP TABLE IF EXISTS `advertisement_label`;
+CREATE TABLE `advertisement_label`
+(
+    `advertisementId` int NOT NULL COMMENT '广告id',
+    `labelId`         int NULL DEFAULT NULL COMMENT '标签id',
+    PRIMARY KEY (`advertisementId`) USING BTREE
+) ENGINE = InnoDB
+  CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_bin
+  ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of advertisement_label
+-- ----------------------------
+INSERT INTO `advertisement_label`
+VALUES (1, 1);
+INSERT INTO `advertisement_label`
+VALUES (2, 1);
+
+-- ----------------------------
+-- Table structure for label
+-- ----------------------------
+DROP TABLE IF EXISTS `label`;
+CREATE TABLE `label`
+(
+    `id`   int                                                    NOT NULL AUTO_INCREMENT,
+    `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL DEFAULT NULL COMMENT '标签名称',
+    PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 2
+  CHARACTER SET = utf8mb4
+  COLLATE = utf8mb4_bin
+  ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of label
+-- ----------------------------
+INSERT INTO `label`
+VALUES (1, 'car');
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- Table structure for black_list
+-- ----------------------------
+
 CREATE TABLE black_list
 (
     userid CHAR(1) PRIMARY KEY
@@ -402,4 +654,5 @@ CREATE TABLE area_city_ad_count
     count BIGINT,
     PRIMARY KEY (dt, area, city, adid)
 );
+
 ```
